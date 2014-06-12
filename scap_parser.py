@@ -7,7 +7,7 @@
 # Returnable Data: A dictionary of Vulnerabilities [vuln_id] = [Vulnerability Title, Vulnerability Severity, Vulnerability PCI Severity, Vulnerability CVSS Score, Vulnerability CVSS Vector, Vulnerability Published, Vulnerability Added Date, Vulnerability Modified Date, Vulnerability Description, References, Solutions, Solutions links]
 # Returnable Data: A dictionary of Vulnerabilities mapped to hosts [Vulnerability IDs] = [IPs, hostnames]
 # Returnable Data: A dictionary of hosts mapped to details [IPs]=[MAC Addresses, Hostnames, Vulnerability IDs]
-#A dictionary of hosts mapped to details [IPs]=[MAC Addresses, Hostnames, Ports, Services, Port:Protocol, Port:Protocol:Service, Vulnerability IDs]
+#A dictionary of hosts mapped to details [IPs]=[MAC Addresses, Hostnames, Ports, Services, Port:Protocol, Port:Protocol:Service, Vulnerability IDs, os_vendor, os_product, os_version]
 #A dictionary of services mapped to hosts [service]=[IPs, hostnames, ip:(hostnames)]
 # Name: scap_parser.py
 # Disclaimer: This script is intended for professionals and not malicious activity
@@ -81,9 +81,11 @@ class Scap_parser:
         host_details={}
         vuln_dict={}
         temp_ref_dict={}
+        solution_link=None
         hostname = "Unknown hostname"
         root = tree.getroot()
         hostname_node = None
+        high_cert = None
         if verbose >0:
             print ("[*] Parsing the SCAP XML file: %s") %(scap_xml)
         for host in root.iter('nodes'):
@@ -109,10 +111,22 @@ class Scap_parser:
                                 print ("[-] No hostname found")
                             hostname = "Unknown hostname"
                             hostnames.append(hostname)
-                for tests in host.iter('tests'):
+                # Identify most likely fingerprint
+                for fingerprints in node.iter('fingerprints'):
+                    for oss in fingerprints.iter('os'):
+                        temp_cert = oss.get('certainty')
+                        if high_cert is None or temp_cert > high_cert:
+                            high_cert = temp_cert
+                    for oss in fingerprints.iter('os'):
+                        temp_cert = oss.get('certainty')
+                        if temp_cert == high_cert:
+                            os_vendor = oss.get('vendor')
+                            os_product = oss.get('family')
+                            os_version = oss.get('version')
+                for tests in node.iter('tests'): # WAS host.iter check to make sure it still works
                     for test in tests.iter('test'):
                         vuln_status = test.get('status')
-                        if "vulnerable" in vuln_status:
+                        if "not-vulnerable" not in vuln_status:
                             temp = test.get('id')
                             temp=temp.lower()
                             status_id="%s:%s" % (temp, vuln_status)
@@ -120,6 +134,21 @@ class Scap_parser:
                             host_vuln_ids.append(temp)
                             vuln_ids.append(temp)
                             status_id_list.append(status_id)
+                        elif "skipped" in vuln_status or "error" in vuln_status:
+                            temp = test.get('id')
+                            temp=temp.lower()
+                            status_id="%s:%s" % (temp, vuln_status)
+                            vuln_dict[temp]=[vuln_status]
+                            host_vuln_ids.append(temp)
+                            vuln_ids.append(temp)
+                            status_id_list.append(status_id)
+                        else:
+                            if verbose > 4:
+                                temp = test.get('id')
+                                temp=temp.lower()
+                                print ("Host %s:%s was not vulnerable to: %s") % (address, hostname, temp)
+                           
+                #HOST VULNS DICT
                 host_vulns_temp[address]=[hwaddress, hostnames, host_vuln_ids, status_id_list]
                 host_vulns = dict(host_vulns_temp.items() + host_vulns.items())
                 for item in host.iter('endpoints'):
@@ -144,7 +173,7 @@ class Scap_parser:
                         port_protocol_list.append(port_protocol)
                         port_protocol_service_list.append(port_protocol_service)
                 # Complete host details
-                host_details[address]=[hwaddress, hostnames, port_list, service_list, port_protocol_list, port_protocol_service_list, len(host_vuln_ids)]
+                host_details[address]=[hwaddress, hostnames, port_list, service_list, port_protocol_list, port_protocol_service_list, len(host_vuln_ids),os_vendor, os_product, os_version]
         service_list = self.uniq_list(service_list)
         for vulns in root.iter('VulnerabilityDefinitions'):
             for vuln in vulns.iter('vulnerability'):
@@ -176,17 +205,16 @@ class Scap_parser:
                             if verbose > 4:
                                 print ("No Vulnerability Description was found")
                         ref_dict[source]=locator
-                #print vuln_id #DEBUG
                 temp_ref_dict[vuln_id]=dict(ref_dict)
                 ref_dict.clear
-                #print ref_dict #DEBUG
-                #print temp_ref_dict.get(vuln_id) #DEBUG
                 for solution in vuln.iter('solution'):
                     for container in solution.iter('ContainerBlockElement'):
                         for paragraph in container.iter('Paragraph'):
                             solutions.append(paragraph.text)
                         for links in container.iter('URLLink'):
                             solution_link = links.get('LinkURL')
+                            if solution_link is None:
+                                solution_link = links.get('LinkTitle')                              
                 problems.append([vuln_id,vuln_title,vuln_severity,vuln_pciseverity,vuln_cvssscore,vuln_cvssvector,vuln_published, vuln_added, vuln_modified, vuln_description, solutions, solution_link])
         # Generate Host data Dictionary
         for i in range(0, len(services)):
@@ -465,7 +493,7 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
     worksheet2.set_column(2, 2, 30)
     worksheet2.set_column(3, 4, 13)
     worksheet2.set_column(5, 5, 22)
-    worksheet2.set_column(6, 6, 16)
+    worksheet2.set_column(6, 9, 16)
     # Column width for worksheet 3
     worksheet3.set_column(0, 1, 30)
     # Column width for worksheet 4
@@ -528,7 +556,10 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
     worksheet2.write('E1', "Services", format1)
     worksheet2.write('F1', "Port:Protocol:Service", format1)
     worksheet2.write('G1', "Vulnerabilities", format1)
-    worksheet2.autofilter('A1:G1')
+    worksheet2.write('H1', "Vendor", format1)
+    worksheet2.write('I1', "Product", format1)
+    worksheet2.write('J1', "Version", format1)
+    worksheet2.autofilter('A1:J1')
     # Generate Row 1 for worksheet three
     worksheet3.write('A1', "Service", format1)
     worksheet3.write('B1', "Hosts", format1)
@@ -657,6 +688,9 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
         service_list=", ".join(value[3])
         port_protocol_service_list=", ".join(value[5])
         num_vulns=value[6]
+        os_vendor=value[7]
+        os_product=value[8]
+        os_version=value[9]
         try:
             if row2 % 2 != 0:
                 temp_format = format2
@@ -669,6 +703,9 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
             worksheet2.write(row2, col2 + 4, service_list, temp_format)
             worksheet2.write(row2, col2 + 5, port_protocol_service_list, temp_format)
             worksheet2.write(row2, col2 + 6, int(num_vulns), temp_format)
+            worksheet2.write(row2, col2 + 7, os_vendor, temp_format)
+            worksheet2.write(row2, col2 + 8, os_product, temp_format)
+            worksheet2.write(row2, col2 + 9, float(os_version), temp_format)
         except:
             if verbose > 3:
                 print "[!] An error occurred writing data for %s in Worksheet 2" % (ip)
@@ -751,7 +788,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--filename", type=str, help="Filename for output of exports", action="store", dest="filename")
     parser.add_argument("-v", action="count", dest="verbose", default=1, help="Verbosity level, defaults to one, this outputs each command and result")
     parser.add_argument("-q", action="store_const", dest="verbose", const=0, help="Sets the results to be quiet")
-    parser.add_argument('--version', action='version', version='%(prog)s 0.44b')
+    parser.add_argument('--version', action='version', version='%(prog)s 0.45b')
     args = parser.parse_args()
 
     # Argument Validator
