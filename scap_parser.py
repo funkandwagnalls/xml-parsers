@@ -86,6 +86,9 @@ class Scap_parser:
         root = tree.getroot()
         hostname_node = None
         high_cert = None
+        os_vendor = ""
+        os_product = ""
+        os_version = ""
         if verbose >0:
             print ("[*] Parsing the SCAP XML file: %s") %(scap_xml)
         for host in root.iter('nodes'):
@@ -120,10 +123,21 @@ class Scap_parser:
                     for oss in fingerprints.iter('os'):
                         temp_cert = oss.get('certainty')
                         if temp_cert == high_cert:
-                            os_vendor = oss.get('vendor')
-                            os_product = oss.get('family')
                             os_version = oss.get('version')
-                for tests in node.iter('tests'): # WAS host.iter check to make sure it still works
+                            if (isinstance(os_version, basestring)):
+                                os_version_string=True
+                            if os_version_string:
+                                os_version = str(os_version)
+                                os_product = oss.get('product')
+                            else:
+                                os_version = float(os_version)
+                                os_product = oss.get('family')
+                            os_vendor = oss.get('vendor')
+                            if os_vendor is None:
+                                os_vendor == "Unknown Vendor"
+                            if os_product is None:
+                                os_product == "Unknown Product"                           
+                for tests in node.iter('tests'):
                     for test in tests.iter('test'):
                         vuln_status = test.get('status')
                         if "not-vulnerable" not in vuln_status:
@@ -147,7 +161,13 @@ class Scap_parser:
                                 temp = test.get('id')
                                 temp=temp.lower()
                                 print ("Host %s:%s was not vulnerable to: %s") % (address, hostname, temp)
-                           
+                            temp = test.get('id')
+                            temp=temp.lower()
+                            status_id="%s:%s" % (temp, vuln_status)
+                            vuln_dict[temp]=[vuln_status]
+                            host_vuln_ids.append(temp)
+                            vuln_ids.append(temp)
+                            status_id_list.append(status_id)
                 #HOST VULNS DICT
                 host_vulns_temp[address]=[hwaddress, hostnames, host_vuln_ids, status_id_list]
                 host_vulns = dict(host_vulns_temp.items() + host_vulns.items())
@@ -479,6 +499,8 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
     worksheet4 = workbook.add_worksheet("MiTM Targets")
     worksheet5 = workbook.add_worksheet("Exploitable Targets")
     worksheet6 = workbook.add_worksheet("Vulnerable Software Versions")
+    worksheet7 = workbook.add_worksheet("IP to Vulnerability Matrix")
+    worksheet8 = workbook.add_worksheet("Not Vulnerable or FP")
     # Column width for worksheet 1
     worksheet.set_column(0, 0, 20)
     worksheet.set_column(1, 3, 12)
@@ -512,6 +534,21 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
     worksheet6.set_column(1, 1, 25)
     worksheet6.set_column(2, 2, 30)
     worksheet6.set_column(3, 3, 20)
+    # Column width for worksheet 7
+    worksheet7.set_column(0, 0, 19)
+    worksheet7.set_column(1, 1, 20)
+    worksheet7.set_column(2, 3, 12)
+    worksheet7.set_column(4, 5, 30)
+    worksheet7.set_column(7, 8, 19)
+    worksheet7.set_column(9, 9, 30)
+    worksheet7.set_column(10, 10, 13)
+    worksheet7.set_column(11, 12, 24)
+    # Column width for worksheet 8
+    worksheet8.set_column(0, 0, 30)
+    worksheet8.set_column(1, 1, 25)
+    worksheet8.set_column(2, 2, 30)
+    worksheet8.set_column(3, 3, 20)
+    worksheet8.set_column(4, 4, 30)
     # Define starting location for Worksheet one
     row = 1
     col = 0
@@ -530,6 +567,12 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
     # Define starting location for Worksheet five
     row6 = 1
     col6 = 0
+    # Define starting location for Worksheet five
+    row7 = 1
+    col7 = 0
+    # Define starting location for Worksheet five
+    row8 = 1
+    col8 = 0
     if verbose > 0:
         print ("[*] Creating Workbook: %s") % (filename)
     # Generate Row 1 for worksheet one
@@ -548,7 +591,6 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
     worksheet.write('M1', "Solution Link", format1)
     worksheet.autofilter('A1:M1')
     # Generate Row 1 for worksheet two
-    #host_details[address]=[hwaddress, hostnames, port_list, service_list, port_protocol_list, port_protocol_service_list, len(host_vuln_ids)]
     worksheet2.write('A1', "IP", format1)
     worksheet2.write('B1', "MAC Address", format1)
     worksheet2.write('C1', "Hostnames", format1)
@@ -583,7 +625,29 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
     worksheet6.write('C1', "Description", format1)
     worksheet6.write('D1', "References", format1)
     worksheet6.autofilter('A1:D1')
-    # Generate workseet 5
+    # Generate Row 1 for worksheet 7
+    worksheet7.write('A1', "Affected Host", format1)
+    worksheet7.write('B1', "Vulnerability Title", format1)
+    worksheet7.write('C1', "Severity", format1)
+    worksheet7.write('D1', "PCI Severity", format1)
+    worksheet7.write('E1', "CVSS Score", format1)
+    worksheet7.write('F1', "CVSS Vector", format1)
+    worksheet7.write('G1', "Published Date", format1)
+    worksheet7.write('H1', "Added Date", format1)
+    worksheet7.write('I1', "Modified Date", format1)
+    worksheet7.write('J1', "Description", format1)
+    worksheet7.write('K1', "References", format1)
+    worksheet7.write('L1', "Solutions", format1)
+    worksheet7.write('M1', "Solution Link", format1)
+    worksheet7.autofilter('A1:M1')
+    # Generate Row 1 for worksheet eight
+    worksheet8.write('A1', "Vulnerability Title", format1)
+    worksheet8.write('B1', "Affected Hosts", format1)
+    worksheet8.write('C1', "Description", format1)
+    worksheet8.write('D1', "References", format1)
+    worksheet8.write('E1', "Results", format1)
+    worksheet8.autofilter('A1:E1')
+    # Generate workseet 6
     for key, value in vuln_hosts.items():
         temp = str(vuln_dict.get(key)).strip('[]')
         if "vulnerable-version" in temp:
@@ -619,7 +683,45 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
             except:
                 if verbose > 3:
                     print "[!] An error occurred writing data for %s in Worksheet 6" % (vuln_title)
-
+    # Generate workseet 8
+    for key, value in vuln_hosts.items():
+        temp = str(vuln_dict.get(key)).strip('[]')
+        if "not-vulnerable" in temp:
+            try:
+                temp=vulnerabilities[key]
+                vuln_title=temp[0]
+                vuln_description=temp[8]
+                ref_dict_temp=temp[9]
+            except:
+                if verbose > 3:
+                    print "[!] An error occurred parsing vulnerbility ID: %s" %(key)
+            hosts_temp = ",".join(vuln_hosts.get(key))
+            hosts_temp = hosts_temp.split(':')
+            hostnames_temp = str(hosts_temp[1]).strip('[]')
+            hosts = "%s:(%s)"% (hosts_temp[0],hostnames_temp)
+            #exploit_temp = curlModule(verbose, ref_dict_temp)
+            exploits = ", ".join(exploit_temp)
+            for k, v in ref_dict_temp.items():
+                temps="%s:%s" % (k,v)
+                references.append(temps)
+            ref = ", ".join(references)
+            if ref is None or ref == "":
+                ref="No References Supplied"
+            try:
+                if row8 % 2 != 0:
+                    temp_format = format2
+                else:
+                    temp_format = format3
+                worksheet8.write(row8, col8,     vuln_title, temp_format)
+                worksheet8.write(row8, col8 + 1, hosts, temp_format)
+                worksheet8.write(row8, col8 + 2, vuln_description, temp_format)
+                worksheet8.write(row8, col8 + 3, ref, temp_format)
+                worksheet8.write(row8, col8 + 4, "Not Vulnerable or False Positive", temp_format)
+                row8 += 1
+                references=[]
+            except:
+                if verbose > 3:
+                    print "[!] An error occurred writing data for %s in Worksheet 8" % (vuln_title)
     # Generate workseet 5
     for key, value in vuln_hosts.items():
         temp = str(vuln_dict.get(key)).strip('[]')
@@ -705,7 +807,7 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
             worksheet2.write(row2, col2 + 6, int(num_vulns), temp_format)
             worksheet2.write(row2, col2 + 7, os_vendor, temp_format)
             worksheet2.write(row2, col2 + 8, os_product, temp_format)
-            worksheet2.write(row2, col2 + 9, float(os_version), temp_format)
+            worksheet2.write(row2, col2 + 9, os_version, temp_format)
         except:
             if verbose > 3:
                 print "[!] An error occurred writing data for %s in Worksheet 2" % (ip)
@@ -727,6 +829,61 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
         row3 += 1
     # Generate Worksheet 1
     for key, value in vuln_hosts.items():        
+        temp = str(vuln_dict.get(key)).strip('[]')
+        if "not-vulnerable" not in temp:
+            try:
+                temp=vulnerabilities[key]
+                vuln_title=temp[0]
+                vuln_severity=temp[1]
+                vuln_pciseverity=temp[2]
+                vuln_cvssscore=temp[3]
+                vuln_cvssvector=temp[4]
+                vuln_published=temp[5]
+                vuln_added=temp[6]
+                vuln_modified=temp[7]
+                vuln_description=temp[8]
+                ref_dict_temp_ws1=temp[9]
+                solutions=temp[10]
+                solution_link=temp[11]
+            except:
+                if verbose > 3:
+                    print "[!] An error occurred parsing vulnerbility ID: %s" %(key)
+            hosts_temp = ",".join(vuln_hosts.get(key))
+            hosts_temp = hosts_temp.split(':')
+            hostnames_temp = str(hosts_temp[1]).strip('[]')
+            hosts = "%s:(%s)"% (hosts_temp[0],hostnames_temp)
+            for k, v in ref_dict_temp_ws1.items():
+                temps="%s:%s" % (k,v)
+                references.append(temps)
+            ref = ", ".join(references)
+            solutions = "".join(solutions)
+            try:
+                if row % 2 != 0:
+                    temp_format = format2
+                else:
+                    temp_format = format3
+                if ref is None or ref == "":
+                    ref="No References Supplied"
+                worksheet.write(row, col,     vuln_title, temp_format)
+                worksheet.write(row, col + 1, int(vuln_severity), temp_format)
+                worksheet.write(row, col + 2, int(vuln_pciseverity), temp_format)
+                worksheet.write(row, col + 3, float(vuln_cvssscore), temp_format)
+                worksheet.write(row, col + 4, vuln_cvssvector, temp_format)
+                worksheet.write(row, col + 5, hosts, temp_format)
+                worksheet.write(row, col + 6, vuln_published, temp_format)
+                worksheet.write(row, col + 7, vuln_added, temp_format)
+                worksheet.write(row, col + 8, vuln_modified, temp_format)
+                worksheet.write(row, col + 9, vuln_description, temp_format)
+                worksheet.write(row, col + 10, ref, temp_format)
+                worksheet.write(row, col + 11, solutions, temp_format)
+                worksheet.write(row, col + 12, solution_link, temp_format)
+                row += 1
+                references=[]
+            except:
+                if verbose > 3:
+                    print "[!] An error occurred writing data for %s" % (vuln_title)
+    # Generate Worksheet 7
+    for key, value in vuln_hosts.items():        
         try:
             temp=vulnerabilities[key]
             vuln_title=temp[0]
@@ -744,41 +901,44 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
         except:
             if verbose > 3:
                 print "[!] An error occurred parsing vulnerbility ID: %s" %(key)
-        hosts_temp = ",".join(vuln_hosts.get(key))
-        hosts_temp = hosts_temp.split(':')
-        hostnames_temp = str(hosts_temp[1]).strip('[]')
-        hosts = "%s:(%s)"% (hosts_temp[0],hostnames_temp)
+        for host in vuln_hosts.get(key):
+            host = host.split(':')
+            hostnames_temp = str(host[1]).strip('[]')
+            host = "%s:(%s)"% (host[0],hostnames_temp)
         for k, v in ref_dict_temp_ws1.items():
             temps="%s:%s" % (k,v)
             references.append(temps)
         ref = ", ".join(references)
         solutions = "".join(solutions)
         try:
-            if row % 2 != 0:
+            if row7 % 2 != 0:
                 temp_format = format2
             else:
                 temp_format = format3
             if ref is None or ref == "":
                 ref="No References Supplied"
-            worksheet.write(row, col,     vuln_title, temp_format)
-            worksheet.write(row, col + 1, int(vuln_severity), temp_format)
-            worksheet.write(row, col + 2, int(vuln_pciseverity), temp_format)
-            worksheet.write(row, col + 3, float(vuln_cvssscore), temp_format)
-            worksheet.write(row, col + 4, vuln_cvssvector, temp_format)
-            worksheet.write(row, col + 5, hosts, temp_format)
-            worksheet.write(row, col + 6, vuln_published, temp_format)
-            worksheet.write(row, col + 7, vuln_added, temp_format)
-            worksheet.write(row, col + 8, vuln_modified, temp_format)
-            worksheet.write(row, col + 9, vuln_description, temp_format)
-            worksheet.write(row, col + 10, ref, temp_format)
-            worksheet.write(row, col + 11, solutions, temp_format)
-            worksheet.write(row, col + 12, solution_link, temp_format)
-            row += 1
+            worksheet7.write(row7, col7,     host, temp_format)
+            worksheet7.write(row7, col7 + 1, vuln_title, temp_format)
+            worksheet7.write(row7, col7 + 2, int(vuln_severity), temp_format)
+            worksheet7.write(row7, col7 + 3, int(vuln_pciseverity), temp_format)
+            worksheet7.write(row7, col7 + 4, float(vuln_cvssscore), temp_format)
+            worksheet7.write(row7, col7 + 5, vuln_cvssvector, temp_format)
+            worksheet7.write(row7, col7 + 6, vuln_published, temp_format)
+            worksheet7.write(row7, col7 + 7, vuln_added, temp_format)
+            worksheet7.write(row7, col7 + 8, vuln_modified, temp_format)
+            worksheet7.write(row7, col7 + 9, vuln_description, temp_format)
+            worksheet7.write(row7, col7 + 10, ref, temp_format)
+            worksheet7.write(row7, col7 + 11, solutions, temp_format)
+            worksheet7.write(row7, col7 + 12, solution_link, temp_format)
+            row7 += 1
             references=[]
         except:
             if verbose > 3:
-                print "[!] An error occurred writing data for %s" % (vuln_title)
-    workbook.close()
+                print "[!] An error occurred writing data for %s in Worksheet 7" % (host)
+    try:
+        workbook.close()
+    except:
+        sys.exit("[!] Permission to write to the file or location provided was denied")
 
 if __name__ == '__main__': 
     # If script is executed at the CLI
@@ -788,7 +948,7 @@ if __name__ == '__main__':
     parser.add_argument("-f", "--filename", type=str, help="Filename for output of exports", action="store", dest="filename")
     parser.add_argument("-v", action="count", dest="verbose", default=1, help="Verbosity level, defaults to one, this outputs each command and result")
     parser.add_argument("-q", action="store_const", dest="verbose", const=0, help="Sets the results to be quiet")
-    parser.add_argument('--version', action='version', version='%(prog)s 0.45b')
+    parser.add_argument('--version', action='version', version='%(prog)s 0.46b')
     args = parser.parse_args()
 
     # Argument Validator
