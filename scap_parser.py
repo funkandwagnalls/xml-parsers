@@ -18,6 +18,11 @@ import argparse
 import urllib
 from StringIO import StringIO    
 try:
+    import docx
+    from docx.shared import Inches
+except:
+    sys.exit("[!] Install the docx writer library as root or through sudo: pip install python-docx")
+try:
     import xlsxwriter
 except:
     sys.exit("[!] Install the xlsx writer library as root or through sudo: pip install xlsxwriter")
@@ -210,7 +215,17 @@ class Scap_parser:
                 vuln_added = vuln.get('added')
                 vuln_modified = vuln.get('modified')
                 try:
-                    vuln_description = vuln.find('description').find('ContainerBlockElement').find('Paragraph').text
+                    s = vuln.find('description').find('ContainerBlockElement').find('Paragraph').text
+                    s = s.replace("\n","")
+                    s = s.replace("\r","")
+                    s = s.replace("\t","")
+                    s = s.replace("    "," ")
+                    s = s.replace("  "," ")
+                    s = s.replace(". ",".  ")
+                    s = s.replace(".   ",".  ")
+                    s = s.replace("from:","from the link below.")
+                    vuln_description=s
+
                 except:
                     if verbose > 4:
                         print ("No Vulnerability Description was found")
@@ -230,7 +245,16 @@ class Scap_parser:
                 for solution in vuln.iter('solution'):
                     for container in solution.iter('ContainerBlockElement'):
                         for paragraph in container.iter('Paragraph'):
-                            solutions.append(paragraph.text)
+                            s = paragraph.text
+                            s = s.replace("\n","")
+                            s = s.replace("\r","")
+                            s = s.replace("\t","")
+                            s = s.replace("    "," ")
+                            s = s.replace("  "," ")
+                            s = s.replace(". ",".  ")
+                            s = s.replace(".   ",".  ")
+                            s = s.replace("from:","from the link below.")
+                            solutions.append(s)
                         for links in container.iter('URLLink'):
                             solution_link = links.get('LinkURL')
                             if solution_link is None:
@@ -940,15 +964,160 @@ def generateXSLX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns
     except:
         sys.exit("[!] Permission to write to the file or location provided was denied")
 
+def generateDOCX(verbose, xml, filename, vulnerabilities, vuln_hosts, host_vulns, hosts, host_details, service_dict, vuln_dict):
+    references=[]
+    temp_list=[]
+    high_to_low=[]
+    host_list=[]
+    document = docx.Document()
+    crit_count=1
+    high_count=1
+    med_count=1
+    low_count=1
+    info_count=1
+    if not filename:
+        filename = "%s.docx" % (xml)
+    else:
+        filename = "%s.docx" % (filename)
+    for key, value in vuln_hosts.items():        
+        temp = str(vuln_dict.get(key)).strip('[]')
+        if "not-vulnerable" not in temp:
+            try:
+                temp=vulnerabilities[key]
+                vuln_title=temp[0]
+                vuln_severity=temp[1]
+                vuln_pciseverity=temp[2]
+                vuln_cvssscore=temp[3]
+                vuln_cvssvector=temp[4]
+                vuln_published=temp[5]
+                vuln_added=temp[6]
+                vuln_modified=temp[7]
+                vuln_description=temp[8]
+                ref_dict_temp_ws1=temp[9]
+                solutions=temp[10]
+                solution_link=temp[11]
+            except:
+                if verbose > 3:
+                    print "[!] An error occurred parsing vulnerbility ID: %s" %(key)
+            hosts_temp = ",".join(vuln_hosts.get(key))
+            hosts_temp = hosts_temp.split(':')
+            hostnames_temp = str(hosts_temp[1]).strip('[]')
+            hosts = ("%s:(%s)"% (hosts_temp[0],hostnames_temp))
+            host_list.append(hosts)
+            for k, v in ref_dict_temp_ws1.items():
+                temps="%s:%s" % (k,v)
+                references.append(temps)
+            ref = ", ".join(references)
+            solutions = "".join(solutions)
+            temp_tup = (vuln_title, vuln_severity, vuln_pciseverity, vuln_cvssscore, vuln_cvssvector, vuln_published, vuln_added, vuln_modified, vuln_description, ref, solutions, solution_link, host_list)
+            temp_list.append(temp_tup)
+            references=[]
+            host_list=[]
+    high_to_low=sorted(temp_list, key=lambda x: float(x[3]), reverse=True)
+    for item in high_to_low:
+        vuln_title=item[0]
+        vuln_severity=item[1]
+        vuln_pciseverity=item[2]
+        vuln_cvssscore=item[3]
+        vuln_cvssvector=item[4]
+        vuln_published=item[5]
+        vuln_added=item[6]
+        vuln_modified=item[7]
+        vuln_description=item[8]
+        ref=item[9]
+        solutions=item[10]
+        solution_link=item[11]
+        hosts=item[12]
+        if float(vuln_cvssscore) >= 7.5:
+            if crit_count ==1:
+                document.add_heading('Critical Findings', level=2)
+            finding_name=("6.1.%s %s") % (crit_count, vuln_title)
+            crit_count +=1
+        elif float(vuln_cvssscore) > 5 and float(vuln_cvssscore) < 7.5:
+            if high_count ==1:
+                document.add_heading('High Findings', level=2)
+            finding_name=("6.2.%s %s") % (high_count, vuln_title)
+            high_count +=1
+        elif float(vuln_cvssscore) > 2.5 and float(vuln_cvssscore) < 5.1 :
+            if med_count ==1:
+                document.add_heading('Medium Findings', level=2)
+            finding_name=("6.3.%s %s") % (med_count, vuln_title)
+            med_count +=1
+        elif float(vuln_cvssscore) <= 2.5:
+            if low_count ==1:
+                document.add_heading('Low Findings', level=2)
+            finding_name=("6.4.%s %s") % (low_count, vuln_title)
+            low_count +=1
+        else:
+            if info_count==1:
+                document.add_heading('Informational Findings', level=2)
+            finding_name=("6.5.%s %s") % (info_count, vuln_title)
+            info_count +=1
+        document.add_heading(finding_name, level=3)
+        table = document.add_table(rows=1,cols=7)
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text='CVSS Base Score'
+        hdr_cells[1].text='Impact Sub-score'
+        hdr_cells[2].text='Exploitability Sub-score'
+        hdr_cells[3].text='CVSS Temporal Score'
+        hdr_cells[4].text='CVSS Enviromental Score'
+        hdr_cells[5].text='Modified Impact Sub-score'
+        hdr_cells[6].text='Overall CVSS Score'
+        row_cells = table.add_row().cells
+        row_cells[0].text = str(vuln_cvssscore)
+        row_cells[1].text = str("N/A")
+        row_cells[2].text = str("N/A")
+        row_cells[3].text = str("N/A")
+        row_cells[4].text = str("N/A")
+        row_cells[5].text = str("N/A")
+        row_cells[6].text = str("N/A")
+        sub_head1 = document.add_paragraph()
+        sub_head1.add_run('Ease of Exploitation:').bold=True
+        sub_head2 = document.add_paragraph()
+        sub_head2.add_run("Mitigation Level: ").bold=True
+        sub_head3 = document.add_paragraph()
+        sub_head3.add_run("Summary: ").bold=True
+        finding_description = document.add_paragraph(vuln_description)
+        sub_head4 = document.add_paragraph()
+        sub_head4.add_run("Affected Host/Locations: ").bold=True
+        for host in hosts:
+            document.add_paragraph(host, style='ListBullet')
+        sub_head5 = document.add_paragraph()
+        sub_head5.add_run("Proof of Concept: ").bold=True
+        sub_head6 = document.add_paragraph()
+        sub_head6.add_run("Recommendation: ").bold=True
+        sub_head8 = document.add_paragraph("Tactical Remediation: ")
+        solutions_para = document.add_paragraph()
+        solutions_para.add_run(solutions)
+        solutions_link_para =document.add_paragraph()
+        solutions_link_para.add_run(solution_link).italic=True
+        sub_head9 = document.add_paragraph("Strategic Remediation: ")
+        sub_head7 = document.add_paragraph()
+        sub_head7.add_run("References: ").bold=True
+        if ref is None or ref is "":
+            ref="No References Supplied"
+        finding_references = document.add_paragraph(ref)
+        document.add_page_break()
+
+    if verbose > 0:
+        print ("[*] Creating Document: %s") % (filename)
+    try:
+        document.save(filename)
+    except:
+        sys.exit("[!] Permission to write to the file or location provided was denied")
+
 if __name__ == '__main__': 
     # If script is executed at the CLI
-    usage = '''usage: %(prog)s [-x reports.xml] -q -v -vv -vvv'''
+    usage = '''usage: %(prog)s [-x reports.xml] [-f filename (extensions added automatically)] --xlsx --docx --all -q -v -vv -vvv'''
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("-x", "--xml", type=str, help="Generate a dictionary of data based on a SCAP XML import, more than one file may be passed, separated by a comma", action="store", dest="xml")
     parser.add_argument("-f", "--filename", type=str, help="Filename for output of exports", action="store", dest="filename")
+    parser.add_argument("--xlsx", action="store_true", dest="xlsx_var", help="Output data into an xlsx file")
+    parser.add_argument("--docx", action="store_true", dest="docx_var", help="Output data into an docx file")
+    parser.add_argument("--all", action="store_true", default=True, dest="all_var", help="Output data into both a docx and xlsx file, which is the default")
     parser.add_argument("-v", action="count", dest="verbose", default=1, help="Verbosity level, defaults to one, this outputs each command and result")
     parser.add_argument("-q", action="store_const", dest="verbose", const=0, help="Sets the results to be quiet")
-    parser.add_argument('--version', action='version', version='%(prog)s 0.46b')
+    parser.add_argument('--version', action='version', version='%(prog)s 0.47b')
     args = parser.parse_args()
 
     # Argument Validator
@@ -960,6 +1129,15 @@ if __name__ == '__main__':
     xml = args.xml                   # nmap XML
     verbose = args.verbose           # Verbosity level
     filename = args.filename         # Filename for Exports
+    all_var = args.all_var           # The boolean holder for all output files
+    xlsx_var = args.xlsx_var         # The boolean holder for the xlsx output file
+    docx_var = args.docx_var         # The boolean holder for the docx output file
+
+    # Normalizers and basic constructors
+    if xlsx_var or docx_var:
+        all_var = False
+    if xlsx_var and docx_var:
+        all_var = True
     xml_list=[]                      # List to hold XMLs
 
     # Set return holder
@@ -1028,7 +1206,15 @@ if __name__ == '__main__':
     processed_vuln_dict=uniqDictKey(verbose, vuln_dict)
 
     # Generate XSLX
-    generateXSLX(verbose, xml, filename, processed_vulnerabilities, processed_vuln_hosts, processed_host_vulns, processed_hosts, processed_host_details, processed_service_dict, processed_vuln_dict)
+    if all_var:
+        generateXSLX(verbose, xml, filename, processed_vulnerabilities, processed_vuln_hosts, processed_host_vulns, processed_hosts, processed_host_details, processed_service_dict, processed_vuln_dict)
+        generateDOCX(verbose, xml, filename, processed_vulnerabilities, processed_vuln_hosts, processed_host_vulns, processed_hosts, processed_host_details, processed_service_dict, processed_vuln_dict)
+    elif xlsx_var:
+        generateXSLX(verbose, xml, filename, processed_vulnerabilities, processed_vuln_hosts, processed_host_vulns, processed_hosts, processed_host_details, processed_service_dict, processed_vuln_dict)
+    elif docx_var:
+        generateDOCX(verbose, xml, filename, processed_vulnerabilities, processed_vuln_hosts, processed_host_vulns, processed_hosts, processed_host_details, processed_service_dict, processed_vuln_dict)
+    else:
+        sys.exit("[!] An error occured when attempting to process the output file")
 
     # Printout of dictionary values
     if verbose>4:
