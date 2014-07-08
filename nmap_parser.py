@@ -1,11 +1,23 @@
 #!/usr/bin/env python
 # Author: Chris Duffy
-# Email: Chris.Duffy@Knowledgecg.com
+# Email: Christopher.s.duffy@gmail.com
 # Date: May 14, 2014
 # Purpose: An script that can process and parse NMAP XMLs
-# Returnable Data: A dictionary of hosts [iterated number] = [hostname, address, protocol, port, service name]
+# Returnable Data: A dictionary of hosts{iterated number} = [[hostnames], address, protocol, port, service name]
 # Name: nmap_parser.py
 # Disclaimer: This script is intended for professionals and not malicious activity
+# Returned Data: "xml" XML file name that was passed by the parsing engine, used as a default name if no filename is passed
+# Returned Data: "filename" filename that will be used to write other files
+# Returned Data: "vulnerabilities" A dictionary of vulnerabilities{vulnerability id : [vulnerability title, vulnerability severity,vulnerability pciseverity, Vulnerability CVSS Score,Vulnerability CVSS Vector, Vulnerability Published Date, Vulnerability Modified Date, Vulnerability Updated Date, Vulnerability Description, References{Ref Type:Reference}, Solutions, Solution link, Vulnerability Status based on how it was identified]}
+# Returned Data: "vuln_hosts" A dictionary of Vulnerabilities mapped to hosts vuln_hosts{Vulnerability IDs = [IPs, [hostname1, hostname2]]}
+# Returned Data: "host_vulns" A dictionary of hosts mapped to details host_vulns{IPs=[MAC Addresses, [Hostnames], [Vulnerability IDs]]}
+# Returned Data: "hosts" A dictionary of hosts{iterated number = [[Hostnames], IP address, protocol, port, service name, MAC Address]}
+# Returned Data: "host_details" A dictionary of hosts mapped to details host_details{IPs=[MAC Addresses, [Hostnames], [Ports], [Services], [Port:Protocol], [Port:Protocol:Service], [Vulnerability IDs], Operating System Vendor, Operating System Product, Operating System Product]}
+# Returned Data: "service_dict" A dictionary of services mapped to hosts service_dict{service=[IPs, [hostnames], ip:(hostname1, hostname2)]}
+# Returned Data: "vuln_dict" A dictionary of vulnerability IDs mapped to vulnerability statuses vuln_dict{Vulnerability ID=Vulnerability Status} 
+# Returned Data: "docVar" The type of office product that should be generated.
+
+# TODO = Update to allow docx and xlsx outputting
 
 import sys
 import xml.etree.ElementTree as etree
@@ -30,13 +42,24 @@ class Nmap_parser:
             sys.exit("[!] Cannot open Nmap XML file: %s \n[-] Ensure that your are passing the correct file and format" % (nmap_xml))       
         hosts={}
         services=[]
+        hostname_list=[]
         root = tree.getroot()
         hostname_node = None
         if verbose > 1:
             print ("[*] Parsing the Nmap XML file: %s") %(nmap_xml)
         for host in root.iter('host'):
-            hostname = "Unknown"    
-            address = host.find('address').get('addr')
+            hostname = "Unknown hostname"    
+            for addresses in host.iter('address'):
+                hwaddress="No MAC Address ID'd"
+                ipv4="No IPv4 Address ID'd"
+                addressv6="No IPv6 Address ID'd"
+                temp = addresses.get('addrtype')
+                if "mac" in temp:
+                    hwaddress = addresses.get('addr')
+                if "ipv4" in temp:
+                    address = addresses.get('addr')
+                if "ipv6" in temp:
+                    addressv6 = addresses.get('addr')
             try: 
                 hostname_node = host.find('hostnames').find('hostname')
             except:
@@ -44,13 +67,17 @@ class Nmap_parser:
                     print ("[!] No hostname found")
             if hostname_node is not None:
                 hostname = hostname_node.get('name')
+            else:
+                hostname = "Unknown hostname"
             for item in host.iter('port'):
                 state = item.find('state').get('state')
                 if state.lower() == 'open':
+                    hostname_list.append(hostname)
                     service = item.find('service').get('name')
                     protocol = item.get('protocol')
                     port = item.get('portid')
-                    services.append([hostname,address,protocol,port,service])
+                    services.append([hostname_list,address,protocol,port,service,hwaddress])
+                    hostname_list=[]
         for i in range(0, len(services)):
             service = services[i]
             hostname=service[0]
@@ -58,18 +85,20 @@ class Nmap_parser:
             protocol=service[2]
             port=service[3]
             serv_name=service[4]
-            hosts[i]=[service[0],service[1],service[2],service[3],service[4]]
-            if verbose > 0:
+            hwaddress=service[5]
+            hosts[i]=[service[0],service[1],service[2],service[3],service[4],service[5]]
+            if verbose > 3:
                 print ("[+] Adding %s with an IP of %s:%s with the service %s to the potential target pool")%(hostname,address,port,serv_name)
         if hosts:
             if verbose > 3:      
-                print ("[*] Results from SCAP XML import: %s") % (hosts)
-            return hosts    
+                print ("[*] Results from NMAP XML import: %s") % (hosts) 
             if verbose > 0:
                 print ("[+] Parsed and imported unique ports") % (str(i))
+            return hosts
         else:
             if verbose > 0:
                 print ("[-] No ports were discovered in the NMAP XML file")
+        
 
     def hostsReturn(self):
         # A controlled return method
@@ -87,7 +116,7 @@ if __name__ == '__main__':
     parser.add_argument("-x", "--xml", type=str, help="Generate a dictionary of data based on a NMAP XML import, more than one file may be passed, separated by a comma", action="store", dest="xml")
     parser.add_argument("-v", action="count", dest="verbose", default=1, help="Verbosity level, defaults to one, this outputs each command and result")
     parser.add_argument("-q", action="store_const", dest="verbose", const=0, help="Sets the results to be quiet")
-    parser.add_argument('--version', action='version', version='%(prog)s 0.42b')
+    parser.add_argument('--version', action='version', version='%(prog)s 0.43b')
     args = parser.parse_args()
 
     # Argument Validator
@@ -131,7 +160,9 @@ if __name__ == '__main__':
     # Processing of each instance returned to create a composite dictionary
     for inst in hosts:
         hosts_temp = inst.hostsReturn()
-        hosts_dict = dict(hosts_temp.items() + hosts_dict.items())
+        print hosts_temp #DEBUG
+        if hosts_temp is not None:
+           hosts_dict = dict(hosts_temp.items() + hosts_dict.items())
 
     # Identify unique dictionary values
     temp = [(k, hosts_dict[k]) for k in hosts_dict]
@@ -144,5 +175,5 @@ if __name__ == '__main__':
     # Printout of dictionary values
     if verbose>0:
         for target in processed_hosts.values():
-            print "[*] Hostname: %s IP: %s Protocol: %s Port: %s Service: %s" % (target[0],target[1],target[2],target[3],target[4])
+            print "[*] Hostname: %s IP: %s Protocol: %s Port: %s Service: %s MAC address: %s" % (target[0],target[1],target[2],target[3],target[4],target[5])
 

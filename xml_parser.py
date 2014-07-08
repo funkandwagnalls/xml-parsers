@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # Author: Chris Duffy
-# Email: Chris.Duffy@Knowledgecg.com
+# Email: christopher.s.duffy@gmail.com
 # Date: May 14, 2014
 # Purpose: An script that can process and parse NMAP & SCAP XMLs
 # Returnable Data: A dictionary of hosts [iterated number] = [hostname, address, protocol, port, service name]
