@@ -5,19 +5,6 @@
 # Purpose: An script that can process and parse NMAP XMLs
 # Returnable Data: A dictionary of hosts{iterated number} = [[hostnames], address, protocol, port, service name]
 # Name: nmap_parser.py
-# Disclaimer: This script is intended for professionals and not malicious activity
-# Returned Data: "xml" XML file name that was passed by the parsing engine, used as a default name if no filename is passed
-# Returned Data: "filename" filename that will be used to write other files
-# Returned Data: "vulnerabilities" A dictionary of vulnerabilities{vulnerability id : [vulnerability title, vulnerability severity,vulnerability pciseverity, Vulnerability CVSS Score,Vulnerability CVSS Vector, Vulnerability Published Date, Vulnerability Modified Date, Vulnerability Updated Date, Vulnerability Description, References{Ref Type:Reference}, Solutions, Solution link, Vulnerability Status based on how it was identified]}
-# Returned Data: "vuln_hosts" A dictionary of Vulnerabilities mapped to hosts vuln_hosts{Vulnerability IDs = [IPs, [hostname1, hostname2]]}
-# Returned Data: "host_vulns" A dictionary of hosts mapped to details host_vulns{IPs=[MAC Addresses, [Hostnames], [Vulnerability IDs]]}
-# Returned Data: "hosts" A dictionary of hosts{iterated number = [[Hostnames], IP address, protocol, port, service name, MAC Address]}
-# Returned Data: "host_details" A dictionary of hosts mapped to details host_details{IPs=[MAC Addresses, [Hostnames], [Ports], [Services], [Port:Protocol], [Port:Protocol:Service], [Vulnerability IDs], Operating System Vendor, Operating System Product, Operating System Product]}
-# Returned Data: "service_dict" A dictionary of services mapped to hosts service_dict{service=[IPs, [hostnames], ip:(hostname1, hostname2)]}
-# Returned Data: "vuln_dict" A dictionary of vulnerability IDs mapped to vulnerability statuses vuln_dict{Vulnerability ID=Vulnerability Status} 
-# Returned Data: "docVar" The type of office product that should be generated.
-
-# TODO = Update to allow docx and xlsx outputting
 
 import sys
 import xml.etree.ElementTree as etree
@@ -26,90 +13,102 @@ import argparse
 class Nmap_parser:
     def __init__(self, nmap_xml, verbose=0):
         try:
-            self.hosts = self.nmap_parser(verbose, nmap_xml)
-        except Exception as e:
-            print(e) 
+            self.hosts = self.nmap_parser(nmap_xml, verbose)
+        except Exception, e:
+            print("[!] There was an error %s") % (str(e))
+            sys.exit(1)
 
-    def nmap_parser(self, verbose, nmap_xml):
+    def nmap_parser(self, nmap_xml, verbose):
         # Parse the nmap xml file and extract hosts and place them in a dictionary
         # Input: Nmap XML file and verbose flag
-        # Return: Dictionary of hosts [iterated number] = [hostname, address, protocol, port, service name]
+        # Return: Dictionary of hosts [iterated number] = [hostname, address, protocol, port, service name, state]
         if not nmap_xml:
-            sys.exit("[!] Cannot open Nmap XML file: %s \n[-] Ensure that your are passing the correct file and format" % (nmap_xml))       
+            sys.exit("[!] Cannot open Nmap XML file: %s \n[-] Ensure that your are passing the correct file and format" % (nmap_xml))
         try:
             tree = etree.parse(nmap_xml)
         except:
-            sys.exit("[!] Cannot open Nmap XML file: %s \n[-] Ensure that your are passing the correct file and format" % (nmap_xml))       
+            sys.exit("[!] Cannot open Nmap XML file: %s \n[-] Ensure that your are passing the correct file and format" % (nmap_xml))
         hosts={}
         services=[]
         hostname_list=[]
         root = tree.getroot()
         hostname_node = None
-        if verbose > 1:
-            print ("[*] Parsing the Nmap XML file: %s") %(nmap_xml)
+        if verbose > 0:
+            print ("[*] Parsing the Nmap XML file: %s") % (nmap_xml)
         for host in root.iter('host'):
-            hostname = "Unknown hostname"    
+            hostname = "Unknown hostname"
             for addresses in host.iter('address'):
-                hwaddress="No MAC Address ID'd"
-                ipv4="No IPv4 Address ID'd"
-                addressv6="No IPv6 Address ID'd"
+                hwaddress = "No MAC Address ID'd"
+                ipv4 = "No IPv4 Address ID'd"
+                addressv6 = "No IPv6 Address ID'd"
                 temp = addresses.get('addrtype')
                 if "mac" in temp:
                     hwaddress = addresses.get('addr')
+                    if verbose > 2:
+                        print("[*] The host was on the same broadcast domain")
                 if "ipv4" in temp:
                     address = addresses.get('addr')
+                    if verbose > 2:
+                        print("[*] The host had an IPv4 address")
                 if "ipv6" in temp:
                     addressv6 = addresses.get('addr')
-            try: 
+                    if verbose > 2:
+                        print("[*] The host had an IPv6 address")
+            try:
                 hostname_node = host.find('hostnames').find('hostname')
             except:
-                if verbose>2:
+                if verbose > 1:
                     print ("[!] No hostname found")
             if hostname_node is not None:
                 hostname = hostname_node.get('name')
             else:
                 hostname = "Unknown hostname"
+                if verbose > 1:
+                    print("[*] The hosts hostname is %s") % (str(hostname_node))
             for item in host.iter('port'):
                 state = item.find('state').get('state')
-                if state.lower() == 'open':
-                    hostname_list.append(hostname)
-                    service = item.find('service').get('name')
-                    protocol = item.get('protocol')
-                    port = item.get('portid')
-                    services.append([hostname_list,address,protocol,port,service,hwaddress])
-                    hostname_list=[]
+                #if state.lower() == 'open':
+                hostname_list.append(hostname)
+                service = item.find('service').get('name')
+                protocol = item.get('protocol')
+                port = item.get('portid')
+                services.append([hostname_list, address, protocol, port, service, hwaddress, state])
+                hostname_list=[]
         for i in range(0, len(services)):
             service = services[i]
-            hostname=service[0]
-            address=service[1]
-            protocol=service[2]
-            port=service[3]
-            serv_name=service[4]
-            hwaddress=service[5]
-            hosts[i]=[service[0],service[1],service[2],service[3],service[4],service[5]]
-            if verbose > 3:
-                print ("[+] Adding %s with an IP of %s:%s with the service %s to the potential target pool")%(hostname,address,port,serv_name)
+            index = len(service) - 1
+            hostname = service[0]
+            address = service[1]
+            protocol = service[2]
+            port = service[3]
+            serv_name = service[4]
+            hwaddress = service[5]
+            state = service[6]
+            hosts[i] = [hostname, address, protocol, port, serv_name, hwaddress, state]
+            if verbose > 2:
+                print ("[+] Adding %s with an IP of %s:%s with the service %s")%(hostname,address,port,serv_name)
         if hosts:
-            if verbose > 3:      
-                print ("[*] Results from NMAP XML import: %s") % (hosts) 
+            if verbose > 4:
+                print ("[*] Results from NMAP XML import: ")
+                for key, entry in hosts.iteritems():
+                    print("[*] %s") % (str(entry))
             if verbose > 0:
-                print ("[+] Parsed and imported unique ports") % (str(i))
-            return hosts
+                print ("[+] Parsed and imported unique ports %s") % (str(i+1))
+            return(hosts)
         else:
             if verbose > 0:
                 print ("[-] No ports were discovered in the NMAP XML file")
-        
 
     def hostsReturn(self):
         # A controlled return method
         # Input: None
         # Returned: The processed hosts
-	try:
+        try:
              return self.hosts
-	except Exception as e:
-	    print(e)
+        except Exception as e:
+            print("[!] There was an error returning the data %s") % (e)
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     # If script is executed at the CLI
     usage = '''usage: %(prog)s [-x reports.xml] -q -v -vv -vvv'''
     parser = argparse.ArgumentParser(usage=usage)
@@ -125,8 +124,8 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # Set Constructors
-    xml = args.xml                   # nmap XML
-    verbose = args.verbose           # Verbosity level
+    xml = args.xml                      # nmap XML
+    verbose = args.verbose              # Verbosity level
     xml_list=[]                         # List to hold XMLs
 
     # Set return holder
@@ -144,26 +143,31 @@ if __name__ == '__main__':
         try:
             tree_temp = etree.parse(x)
         except:
-            sys.exit("[!] Cannot open XML file: %s \n[-] Ensure that your are passing the correct file and format" % (x))       
+            sys.exit("[!] Cannot open XML file: %s \n[-] Ensure that your are passing the correct file and format" % (x))
         try:
             root = tree_temp.getroot()
-            name=root.get("scanner")
+            name = root.get("scanner")
             if name is not None and "nmap" in name:
                 if verbose > 1:
-                    print ("[*] File being processed is a NMAP XML")            
+                    print ("[*] File being processed is an NMAP XML")
                 hosts.append(Nmap_parser(x, verbose))
             else:
-                sys.exit("[!] File being processed is not a NMAP XML")  
-        except:
-            sys.exit("[!] File being processed is not a NMAP XML")  
+                print("[!] File % is not an NMAP XML") % (str(x))
+                sys.exit(1)
+        except Exception, e:
+            print("[!] Processing of file %s failed %s") % (str(x), str(e))
+            sys.exit(1)
 
     # Processing of each instance returned to create a composite dictionary
+    if not hosts:
+        sys.exit("[!] There was an issue processing the data")
     for inst in hosts:
         hosts_temp = inst.hostsReturn()
-        print hosts_temp #DEBUG
         if hosts_temp is not None:
-           hosts_dict = dict(hosts_temp.items() + hosts_dict.items())
-
+            for i in range(0, len(hosts_temp)):
+                hosts_dict[i] = hosts_temp.items() + hosts_dict.items()
+    for key, value in hosts_dict.iteritems(): #DEBUG
+        print("[*] Key: %s Value: %s") % (key,value) #DEBUG
     # Identify unique dictionary values
     temp = [(k, hosts_dict[k]) for k in hosts_dict]
     temp.sort()
@@ -173,7 +177,6 @@ if __name__ == '__main__':
         processed_hosts[k] = v
 
     # Printout of dictionary values
-    if verbose>0:
+    if verbose > 0:
         for target in processed_hosts.values():
-            print "[*] Hostname: %s IP: %s Protocol: %s Port: %s Service: %s MAC address: %s" % (target[0],target[1],target[2],target[3],target[4],target[5])
-
+            print "[*] Hostname: %s IP: %s Protocol: %s Port: %s Service: %s State: %s MAC address: %s" % (target[0],target[1],target[2],target[3],target[4],target[6],target[5])
