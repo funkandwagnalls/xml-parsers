@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # Author: Chris Duffy
-# Email: Christopher.s.duffy@gmail.com
-# Date: May 14, 2014
+# Date: May 2015
 # Purpose: An script that can process and parse NMAP XMLs
 # Returnable Data: A dictionary of hosts{iterated number} = [[hostnames], address, protocol, port, service name]
 # Name: nmap_parser.py
