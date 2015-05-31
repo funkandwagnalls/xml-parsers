@@ -9,6 +9,8 @@
 import sys
 import xml.etree.ElementTree as etree
 import argparse
+import collections
+
 
 class Nmap_parser:
     def __init__(self, nmap_xml, verbose=0):
@@ -133,6 +135,8 @@ if __name__ == '__main__':
     hosts_temp={}                       # Temporary dictionary, which holds returned data from specific instances
     hosts_dict={}                       # Dictionary, which holds the combined returned dictionaries
     processed_hosts={}                  # The dictionary, which holds the unique values from all processed XMLs
+    count = 0                           # Count for combining dictionaries
+    unique = set()
 
     # Instantiation for proof of concept
     if "," in xml:
@@ -164,19 +168,21 @@ if __name__ == '__main__':
     for inst in hosts:
         hosts_temp = inst.hostsReturn()
         if hosts_temp is not None:
-            for i in range(0, len(hosts_temp)):
-                hosts_dict[i] = hosts_temp.items() + hosts_dict.items()
-    for key, value in hosts_dict.iteritems(): #DEBUG
-        print("[*] Key: %s Value: %s") % (key,value) #DEBUG
-    # Identify unique dictionary values
+            for k, v in hosts_temp.iteritems():
+                hosts_dict[count] = v
+                count+=1
+            hosts_temp.clear()
+    if verbose > 3:
+        for key, value in hosts_dict.iteritems():
+            print("[*] Key: %s Value: %s") % (key,value)
     temp = [(k, hosts_dict[k]) for k in hosts_dict]
     temp.sort()
     for k, v in temp:
-        if v in processed_hosts.values():
+        compare = lambda x, y: collections.Counter(x) == collections.Counter(y)
+        if str(v) in str(processed_hosts.values()):
             continue
         processed_hosts[k] = v
-
     # Printout of dictionary values
     if verbose > 0:
-        for target in processed_hosts.values():
+        for key, target in processed_hosts.iteritems():
             print "[*] Hostname: %s IP: %s Protocol: %s Port: %s Service: %s State: %s MAC address: %s" % (target[0],target[1],target[2],target[3],target[4],target[6],target[5])
