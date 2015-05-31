@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # Author: Chris Duffy
-# Email: christopher.s.duffy@gmail.com
 # Date: May 14, 2014
 # Name: docGenerator.py
 # Purpose: An script that can process dictionaries and lists and convert them into xlsx and docx files.
