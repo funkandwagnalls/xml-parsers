@@ -12,8 +12,10 @@ import collections
 
 try:
     import nmap_doc_generator as gen
-except:
+except Exception as e:
+    print(e)
     sys.exit("[!] Please download the nmap_doc_generator.py script")
+
 from StringIO import StringIO
 
 class Nmap_parser:
@@ -133,6 +135,7 @@ if __name__ == '__main__':
     # Set Constructors
     xml = args.xml                      # nmap XML
     verbose = args.verbose              # Verbosity level
+    filename = args.filename            # Filename to output XLSX
     xml_list=[]                         # List to hold XMLs
 
     # Set return holder
@@ -207,7 +210,7 @@ if __name__ == '__main__':
         processed_hosts[k] = v
 
     # Generator for XLSX documents
-    gen.docGenerator(verbose, hosts_dict, filename)
+    gen.Nmap_doc_generator(verbose, processed_hosts, filename)
 
     # Printout of dictionary values
     #if verbose > 0:
