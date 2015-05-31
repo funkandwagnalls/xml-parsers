@@ -22,7 +22,7 @@ class docGenerator():
             self.run(verbose, self.hosts_dict, self.filename)
         except Exception as e:
             print(e)
-    
+
     def run(self, verbose, hosts_dict, filename):
         print ("") #DEBUG
         # Run the appropriate module
@@ -76,37 +76,38 @@ class docGenerator():
         worksheet.write('G1', "Port State", format1)
         worksheet.autofilter('A1:G1')
         # Populate Worksheet 1
-        for key, value in hosts_dict.items():        
+        for key, value in hosts_dict.items():
             temp = str(hosts_dict.get(key)).strip('[]')
-			try:
-				temp = vulnerabilities[key]
-				hostname = temp[0]
-				address = temp[1]
-				protocol = temp[2]
-				port = temp[3]
-				service_name = temp[4]
-				hwaddress = temp[5]
-				state = temp[6]
-			except:
-				if verbose > 3:
-					print("[!] An error occurred parsing host ID: %s for Worksheet 1") % (key)
-			try:
-				if row % 2 != 0:
-					temp_format = format2
-				else:
-					temp_format = format3
-				worksheet.write(row, col,     hostname, temp_format)
-				worksheet.write(row, col + 1, address, temp_format)
-				worksheet.write(row, col + 2, hwaddress, temp_format)
-				worksheet.write(row, col + 3, port, temp_format)
-				worksheet.write(row, col + 4, service_name, temp_format)
-				worksheet.write(row, col + 5, protocol, temp_format)
-				worksheet.write(row, col + 6, state, temp_format)
-				row += 1
-			except:
-				if verbose > 3:
-					print("[!] An error occurred writing data for Worksheet 1")
+                        try:
+                                temp = vulnerabilities[key]
+                                hostname = temp[0]
+                                address = temp[1]
+                                protocol = temp[2]
+                                port = temp[3]
+                                service_name = temp[4]
+                                hwaddress = temp[5]
+                                state = temp[6]
+                        except:
+                                if verbose > 3:
+                                        print("[!] An error occurred parsing host ID: %s for Worksheet 1") % (key)
+                        try:
+                                if row % 2 != 0:
+                                        temp_format = format2
+                                else:
+                                        temp_format = format3
+                                worksheet.write(row, col,     hostname, temp_format)
+                                worksheet.write(row, col + 1, address, temp_format)
+                                worksheet.write(row, col + 2, hwaddress, temp_format)
+                                worksheet.write(row, col + 3, port, temp_format)
+                                worksheet.write(row, col + 4, service_name, temp_format)
+                                worksheet.write(row, col + 5, protocol, temp_format)
+                                worksheet.write(row, col + 6, state, temp_format)
+                                row += 1
+                        except:
+                                if verbose > 3:
+                                        print("[!] An error occurred writing data for Worksheet 1")
         try:
             workbook.close()
         except:
             sys.exit("[!] Permission to write to the file or location provided was denied")
+
