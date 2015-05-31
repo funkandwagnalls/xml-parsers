@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # Author: Chris Duffy
+# Email: Christopher.s.duffy@gmail.com
 # Date: May 14, 2014
 # Purpose: An script that can process and parse NMAP XMLs
 # Returnable Data: A dictionary of hosts{iterated number} = [[hostnames], address, protocol, port, service name]
@@ -10,6 +11,11 @@ import xml.etree.ElementTree as etree
 import argparse
 import collections
 
+try:
+    import docGenerator as gen
+except:
+    sys.exit("[!] Please download the nmap_doc_generator.py script")
+from StringIO import StringIO
 
 class Nmap_parser:
     def __init__(self, nmap_xml, verbose=0):
@@ -78,7 +84,7 @@ class Nmap_parser:
         for i in range(0, len(services)):
             service = services[i]
             index = len(service) - 1
-            hostname = service[0]
+            hostname = str1 = ''.join(service[0])
             address = service[1]
             protocol = service[2]
             port = service[3]
@@ -114,6 +120,7 @@ if __name__ == '__main__':
     usage = '''usage: %(prog)s [-x reports.xml] -q -v -vv -vvv'''
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("-x", "--xml", type=str, help="Generate a dictionary of data based on a NMAP XML import, more than one file may be passed, separated by a comma", action="store", dest="xml")
+    parser.add_argument("-f", "--filename", type=str, action="store", dest="filename", help="The filename that will be used to create an XLSX")
     parser.add_argument("-v", action="count", dest="verbose", default=1, help="Verbosity level, defaults to one, this outputs each command and result")
     parser.add_argument("-q", action="store_const", dest="verbose", const=0, help="Sets the results to be quiet")
     parser.add_argument('--version', action='version', version='%(prog)s 0.43b')
@@ -136,6 +143,24 @@ if __name__ == '__main__':
     processed_hosts={}                  # The dictionary, which holds the unique values from all processed XMLs
     count = 0                           # Count for combining dictionaries
     unique = set()
+
+    if not filename:
+        if os.name != "nt":
+             filename = dir + "/nmap_output"
+        else:
+             filename = dir + "\\nmap_output"
+    else:
+        if filename:
+            if "\\" or "/" in filename:
+                if verbose > 1:
+                    print("[*] Using filename: %s") % (filename)
+        else:
+            if os.name != "nt":
+                filename = dir + "/" + filename
+            else:
+                filename = dir + "\\" + filename
+                if verbose > 1:
+                    print("[*] Using filename: %s") % (filename)
 
     # Instantiation for proof of concept
     if "," in xml:
@@ -181,7 +206,11 @@ if __name__ == '__main__':
         if str(v) in str(processed_hosts.values()):
             continue
         processed_hosts[k] = v
+
+    # Generator for XLSX documents
+    gen.docGenerator(verbose, hosts_dict, filename)
+
     # Printout of dictionary values
-    if verbose > 0:
-        for key, target in processed_hosts.iteritems():
-            print "[*] Hostname: %s IP: %s Protocol: %s Port: %s Service: %s State: %s MAC address: %s" % (target[0],target[1],target[2],target[3],target[4],target[6],target[5])
+    #if verbose > 0:
+    #    for key, target in processed_hosts.iteritems():
+    #        print "[*] Hostname: %s IP: %s Protocol: %s Port: %s Service: %s State: %s MAC address: %s" % (target[0],target[1],target[2],target[3],target[4],target[6],target[5])
