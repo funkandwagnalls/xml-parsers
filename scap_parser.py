@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # Author: Chris Duffy
-# Email: christopher.s.duffy@gmail.com
 # Date: May 14, 2014
 # Purpose: An script that can process and parse SCAP XMLs
 # Name: scap_parser.py
