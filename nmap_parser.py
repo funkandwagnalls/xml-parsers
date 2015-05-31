@@ -11,7 +11,7 @@ import argparse
 import collections
 
 try:
-    import docGenerator as gen
+    import nmap_doc_generator as gen
 except:
     sys.exit("[!] Please download the nmap_doc_generator.py script")
 from StringIO import StringIO
