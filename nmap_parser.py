@@ -124,7 +124,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("-x", "--xml", type=str, help="Generate a dictionary of data based on a NMAP XML import, more than one file may be passed, separated by a comma", action="store", dest="xml")
     parser.add_argument("-f", "--filename", type=str, action="store", dest="filename", default="xml_output", help="The filename that will be used to create an XLSX")
-    parser.add_argument("-s", "--simple", action="store_const", dest="simple", default=1, const=0, help="Format the output into a simple excel product, instead of a report")
+    parser.add_argument("-s", "--simple", action="store_true", dest="simple", help="Format the output into a simple excel product, instead of a report")
     parser.add_argument("-v", action="count", dest="verbose", default=1, help="Verbosity level, defaults to one, this outputs each command and result")
     parser.add_argument("-q", action="store_const", dest="verbose", const=0, help="Sets the results to be quiet")
     parser.add_argument('--version', action='version', version='%(prog)s 0.43b')
@@ -137,6 +137,8 @@ if __name__ == '__main__':
 
     # Set Constructors
     xml = args.xml                      # nmap XML
+    if not xml:
+        sys.exit("[!] No XML file provided")
     verbose = args.verbose              # Verbosity level
     filename = args.filename            # Filename to output XLSX
     simple = args.simple          # Sets the colors for the excel spreadsheet output
