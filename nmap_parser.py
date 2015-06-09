@@ -109,7 +109,7 @@ class Nmap_parser:
             if self.verbose > 0:
                 print ("[-] No ports were discovered in the NMAP XML file")
 
-    def hostsReturn(self):
+    def hosts_return(self):
         # A controlled return method
         # Input: None
         # Returned: The processed hosts
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     if not hosts:
         sys.exit("[!] There was an issue processing the data")
     for inst in hosts:
-        hosts_temp = inst.hostsReturn()
+        hosts_temp = inst.hosts_return()
         if hosts_temp is not None:
             for k, v in hosts_temp.iteritems():
                 hosts_dict[count] = v
