@@ -3,6 +3,7 @@
 # Date: May 2015
 # Name: nmap_doc_generator.py
 # Purpose: A script that takes data from parsed nmap XML files and writes it into XLSX files
+    import sys
 try:
     import xlsxwriter
 except:
