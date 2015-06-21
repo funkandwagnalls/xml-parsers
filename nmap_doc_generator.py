@@ -25,9 +25,9 @@ class Nmap_doc_generator():
         # Run the appropriate module
         if self.verbose > 0:
             print ("[*] Building %s.xlsx") % (self.filename)
-            self.generate_xslx()
+            self.generate_xlsx()
 
-    def generate_xslx(self):
+    def generate_xlsx(self):
         if "xls" or "xlsx" not in self.filename:
             self.filename = self.filename + ".xlsx"
         workbook = xlsxwriter.Workbook(self.filename)
